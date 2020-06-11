@@ -450,7 +450,7 @@ public class HelloArActivity extends AppCompatActivity implements GLSurfaceView.
           session.getAllTrackables(Plane.class), camera.getDisplayOrientedPose(), projmtx);
 
       // Visualize anchors created by touch.
-      float scaleFactor = 1.0f;
+      float scaleFactor = 0.3f;
       for (ColoredAnchor coloredAnchor : anchors) {
         if (coloredAnchor.anchor.getTrackingState() != TrackingState.TRACKING) {
           continue;

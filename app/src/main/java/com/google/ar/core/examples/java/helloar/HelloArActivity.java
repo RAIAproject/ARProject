@@ -18,36 +18,37 @@ package com.google.ar.core.examples.java.helloar;
 
 import android.Manifest;
 import android.app.DownloadManager;
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.drawable.BitmapDrawable;
+import android.hardware.camera2.CameraDevice;
 import android.net.Uri;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.os.Bundle;
-import android.os.Environment;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.content.ContextCompat;
-import android.support.v7.app.AppCompatActivity;
+import android.os.Handler;
+import android.provider.MediaStore;
+import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import androidx.appcompat.app.AppCompatActivity;
 import android.util.Log;
+import android.util.SparseIntArray;
 import android.view.MotionEvent;
-import android.widget.TextView;
+import android.view.Surface;
+import android.view.View;
+import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.Toast;
 
-import com.android.volley.AuthFailureError;
-import com.android.volley.NetworkError;
-import com.android.volley.NoConnectionError;
-import com.android.volley.ParseError;
-import com.android.volley.Request;
-import com.android.volley.RequestQueue;
-import com.android.volley.Response;
-import com.android.volley.ServerError;
-import com.android.volley.VolleyError;
-import com.android.volley.toolbox.StringRequest;
-import com.android.volley.toolbox.Volley;
+import com.google.mlkit.vision.text.Text;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
 import com.google.ar.core.Anchor;
 import com.google.ar.core.ArCoreApk;
 import com.google.ar.core.Camera;
@@ -68,7 +69,6 @@ import com.google.ar.core.examples.java.common.helpers.TapHelper;
 import com.google.ar.core.examples.java.common.helpers.TrackingStateHelper;
 import com.google.ar.core.examples.java.common.rendering.BackgroundRenderer;
 import com.google.ar.core.examples.java.common.rendering.ObjectRenderer;
-import com.google.ar.core.examples.java.common.rendering.ObjectRenderer.BlendMode;
 import com.google.ar.core.examples.java.common.rendering.PlaneRenderer;
 import com.google.ar.core.examples.java.common.rendering.PointCloudRenderer;
 import com.google.ar.core.exceptions.CameraNotAvailableException;
@@ -77,14 +77,16 @@ import com.google.ar.core.exceptions.UnavailableArcoreNotInstalledException;
 import com.google.ar.core.exceptions.UnavailableDeviceNotCompatibleException;
 import com.google.ar.core.exceptions.UnavailableSdkTooOldException;
 import com.google.ar.core.exceptions.UnavailableUserDeclinedInstallationException;
-
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
+import com.google.mlkit.vision.common.InputImage;
+import com.google.mlkit.vision.text.TextRecognition;
+import com.google.mlkit.vision.text.TextRecognizer;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -103,21 +105,33 @@ public class HelloArActivity extends AppCompatActivity implements GLSurfaceView.
   private GLSurfaceView surfaceView;
 
   private boolean installRequested;
-
+  private Button captureButton ;
+  private ImageView imageView;
+  private CameraDevice cameraDevice;
+  private File file;
+  private Handler mBackgroundHandler;
   private static int imageNumber = 0;
-
+  private String ecuatie="Hello" ;
+  private static final SparseIntArray ORIENTATIONS = new SparseIntArray();
+  static{
+    ORIENTATIONS.append(Surface.ROTATION_0,90);
+    ORIENTATIONS.append(Surface.ROTATION_90,0);
+    ORIENTATIONS.append(Surface.ROTATION_180,270);
+    ORIENTATIONS.append(Surface.ROTATION_270,180);
+  }
   private Session session;
   private final SnackbarHelper messageSnackbarHelper = new SnackbarHelper();
   private DisplayRotationHelper displayRotationHelper;
   private final TrackingStateHelper trackingStateHelper = new TrackingStateHelper(this);
   private TapHelper tapHelper;
-
+  static final int REQUEST_IMAGE_CAPTURE = 1;
   private final BackgroundRenderer backgroundRenderer = new BackgroundRenderer();
   private final ObjectRenderer virtualObject = new ObjectRenderer();
   private final ObjectRenderer virtualObjectShadow = new ObjectRenderer();
   private final PlaneRenderer planeRenderer = new PlaneRenderer();
   private final PointCloudRenderer pointCloudRenderer = new PointCloudRenderer();
-
+  private Bitmap mbitmap;
+  private Bitmap mbitmap2;
   // Temporary matrix allocated here to reduce number of allocations for each frame.
   private final float[] anchorMatrix = new float[16];
   private static final float[] DEFAULT_COLOR = new float[] {0f, 0f, 0f, 0f};
@@ -171,6 +185,8 @@ public class HelloArActivity extends AppCompatActivity implements GLSurfaceView.
       return;
     }
   }
+
+
 
   private void downloadFile(String fileName, String equation) {
 
@@ -230,11 +246,39 @@ public class HelloArActivity extends AppCompatActivity implements GLSurfaceView.
     }
 
   }
+  private void downloadFile2(String fileUrl){
+    URL myFileUrl =null;
+    //Uri built = Uri.parse();
+    try {
+      myFileUrl= new URL("http://109.103.234.35:8080/question?equation=" + fileUrl);
+    } catch (MalformedURLException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
+    try {
+      HttpURLConnection conn= (HttpURLConnection)myFileUrl.openConnection();
+      conn.setDoInput(true);
+      conn.connect();
+      InputStream is = conn.getInputStream();
 
+      mbitmap2 = BitmapFactory.decodeStream(is);
+
+    } catch (IOException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
+  }
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     setContentView(R.layout.activity_main);
+    captureButton =findViewById(R.id.capture_image_btn);
+    captureButton.setOnClickListener(new View.OnClickListener() {
+      @Override
+      public void onClick(View view) {
+        takePicture();
+      }
+    });
     surfaceView = findViewById(R.id.surfaceview);
     displayRotationHelper = new DisplayRotationHelper(/*context=*/ this);
 
@@ -253,8 +297,18 @@ public class HelloArActivity extends AppCompatActivity implements GLSurfaceView.
     installRequested = false;
 
     checkPermissions();
-    downloadFile("First Picture.jpg", "hello");
+    //downloadFile("First Picture.jpg", "hello");
   }
+
+  private void takePicture()
+  {
+    Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+    if (takePictureIntent.resolveActivity(getPackageManager()) != null)
+    {
+      startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
+    }
+  }
+
 
   @Override
   protected void onResume() {
@@ -495,8 +549,12 @@ public class HelloArActivity extends AppCompatActivity implements GLSurfaceView.
 
             anchors.get(0).anchor.detach();
             anchors.remove(0);
-            downloadFile("Equation" + imageNumber +".jpg", "x^2=" + imageNumber);
-            virtualObject.createOnGlThread(/*context=*/ this, "models/object.obj", "Equation" + imageNumber +".jpg");
+
+            downloadFile("Equation" + ecuatie +".jpg", ecuatie);
+            //downloadFile2(ecuatie);
+            virtualObject.createOnGlThread(/*context=*/ this, "models/object.obj", "Equation" + ecuatie +".jpg");
+            //virtualObject.createOnGlThread(/*context=*/ this, "models/object.obj", mbitmap2);
+
             imageNumber++;
 
             runOnUiThread(new Runnable() {
@@ -533,6 +591,49 @@ public class HelloArActivity extends AppCompatActivity implements GLSurfaceView.
     }
   }
 
+  @Override
+  protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+    if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK) {
+      Bundle extras = data.getExtras();
+      Bitmap imageBitmap = (Bitmap) extras.get("data");
+      mbitmap=imageBitmap;
+      detectTextFromImage();
+    }
+  }
+
+  private void detectTextFromImage()
+  {
+
+    InputImage image = InputImage.fromBitmap(mbitmap,0);
+    TextRecognizer recognizer = TextRecognition.getClient();
+    Task<Text> result =
+            recognizer.process(image)
+                    .addOnSuccessListener(new OnSuccessListener<Text>() {
+                      @Override
+                      public void onSuccess(Text visionText)
+                      {
+                        displayTextFromImage(visionText);
+                      }
+                    })
+                    .addOnFailureListener(
+                            new OnFailureListener()
+                            {
+                              @Override
+                              public void onFailure(@NonNull Exception e)
+                              {
+                                Toast.makeText(HelloArActivity.this,"Error: "+e.getMessage(),Toast.LENGTH_SHORT).show();
+                                Log.d("Error: ",e.getMessage());
+                              }
+                            });
+  }
+  private void displayTextFromImage(Text visionText)
+  {
+    String resultText = visionText.getText();
+    ecuatie=resultText;
+
+
+
+  }
   /** Checks if we detected at least one plane. */
   private boolean hasTrackingPlane() {
     for (Plane plane : session.getAllTrackables(Plane.class)) {

@@ -25,5 +25,16 @@
       android:layout_height="fill_parent"
       android:layout_gravity="top"/>
 
+  <Button
+      android:id="@+id/capture_image_btn"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_above="@+id/surfaceview"
+      android:layout_marginBottom="-689dp"
+      android:background="@android:color/white"
+      android:text="Capture Image"
+      android:textAllCaps="false"
+      android:textColor="@android:color/black"
+      android:textSize="17dp" />
 
 </RelativeLayout>
